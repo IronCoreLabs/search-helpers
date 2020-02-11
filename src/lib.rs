@@ -1,73 +1,89 @@
+use itertools::*;
 use lazy_static::*;
 use regex::Regex;
 use sha2::{Digest, Sha256};
+use unidecode::unidecode_char;
 use voca_rs::*;
 
 lazy_static! {
     ///Special chars that should be filtered out.
-    static ref SPECIAL_CHAR: Regex = Regex::new("[!@#$%^&*(){}_-]").unwrap_or_else(|e| panic!("Developer error. Bad regex {:?}", e));
+    static ref SPECIAL_CHAR: Regex = Regex::new(r#"[!@#$%^&*(){}_<>:;,."'`|+=/~\[\]\\-]"#).unwrap_or_else(|e| panic!("Developer error. Bad regex {:?}", e));
 }
 
-pub fn make_index(s: &str, key: &str, salt: &[u8]) -> Vec<u32> {
-    make_index_n_grams(s: &str, 3, key: &str, salt: &[u8])
-}
-
-///
-/// Make an index, for the string s considering all n-grams of length size.
-/// The string will be latinised, lowercased and stripped of special chars before being broken into ngrams.
+/// Make an index, for the string s considering all tri-grams.
+/// The string will be latinised, lowercased and stripped of special chars before being broken into tri-grams.
 /// The values will be prefixed with key and salt before being hashed.
 /// Each entry in the Vec will be truncated to 32 bits and will be encoded as a big endian number.
-///
-pub fn make_index_n_grams(s: &str, size: usize, key: &str, salt: &[u8]) -> Vec<u32> {
+pub fn make_index_tri_grams(s: &str, key: Option<&str>, salt: &[u8]) -> Vec<u32> {
     let short_hash = |word: &[u8]| -> u32 {
         let mut hasher = Sha256::new();
-        hasher.input(key.as_bytes());
+        key.iter().for_each(|k| hasher.input(k.as_bytes()));
         hasher.input(salt);
         hasher.input(word);
-        as_u32_be_unsafe(dbg!(&hasher.result()[..]))
+        as_u32_be(&hasher.result().into())
     };
 
-    make_n_grams(s, size)
+    make_tri_grams(s)
         .iter()
-        .map(|ngram| short_hash(&ngram[..]))
+        .map(|tri_gram| short_hash(tri_gram.as_bytes()))
         .collect()
 }
 
-///
 /// If s is empty, the resulting vec will also be empty.
-/// If s is shorter than n, space padding will be added to the end.
-/// All Vec<u8> inside of the resulting Vec will always be of size `n`.
-pub fn make_n_grams(s: &str, n: usize) -> Vec<Vec<u8>> {
-    let s_with_special_chars = s._latinise()._lower_case();
-    let normalized_string = SPECIAL_CHAR.replace_all(s_with_special_chars.as_str(), "");
-    let result = normalized_string
+/// If s is shorter than 3, '-' padding will be added to the end.
+/// All Strings inside of the resulting Vec will always be of size 3.
+pub fn make_tri_grams(s: &str) -> Vec<String> {
+    let string_without_special_chars = SPECIAL_CHAR.replace_all(s, "");
+    let converted_string: String = string_without_special_chars
+        .chars()
+        .flat_map(|c| {
+            let s: String = char_to_trans(c);
+            s.chars().collect::<Vec<_>>()
+        })
+        .collect();
+    let result = converted_string
         ._words()
         .into_iter()
-        //This is safe because we know that each char can only be a single byte - See Latinise
-        .flat_map(|word| match word.as_bytes() {
-            [] => vec![],
-            //If the word is too short, it must be padded out to the size.
-            non_empty_word if non_empty_word.len() < n => {
-                let padded = pad_bytes(non_empty_word, n);
-                vec![padded]
+        .map(|short_word| {
+            let short_word_len = short_word.chars().count();
+            if short_word_len < 3 {
+                //Pad the short_word with
+                format!("{:-<3}", short_word)
+            } else {
+                short_word.to_string()
             }
-            non_empty_word => non_empty_word
-                .windows(n)
-                .map(|bytes| bytes.to_vec())
-                .collect(),
         })
+        .flat_map(|word| word_to_trigrams(&word))
         .collect::<Vec<_>>();
     result
 }
-//Pads the bytes out with spaces at the end.
-fn pad_bytes(bytes: &[u8], size: usize) -> Vec<u8> {
-    let mut word = vec![32u8; size];
-    word.copy_from_slice(bytes);
-    word
+
+fn word_to_trigrams(s: &str) -> Vec<String> {
+    s.chars()
+        .tuple_windows()
+        .map(|(c1, c2, c3)| {
+            let mut result = String::with_capacity(3);
+            result.push(c1);
+            result.push(c2);
+            result.push(c3);
+            result
+        })
+        .collect()
 }
 
-///This is marked as unsafe because it indexes into the arrays directly.
-fn as_u32_be_unsafe(slice: &[u8]) -> u32 {
+///Convert the char if we can, if we can't just create a string out of the character.
+fn char_to_trans(c: char) -> String {
+    let trans_string = unidecode_char(c);
+    if trans_string == "" {
+        format!("{}", c)
+    } else {
+        trans_string.to_lowercase()
+    }
+}
+
+///Interpret the first 4 bytes as a u32
+#[inline]
+fn as_u32_be(slice: &[u8; 32]) -> u32 {
     ((slice[0] as u32) << 24)
         + ((slice[1] as u32) << 16)
         + ((slice[2] as u32) << 8)
@@ -77,42 +93,67 @@ fn as_u32_be_unsafe(slice: &[u8]) -> u32 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    fn make_trigrams_string(name: &str) -> Vec<String> {
-        bytes_to_chars(make_n_grams(name, 3))
-    }
-    fn bytes_to_chars(b: Vec<Vec<u8>>) -> Vec<String> {
-        b.into_iter()
-            .map(|bytes| std::str::from_utf8(&bytes[..]).unwrap().to_string())
-            .collect()
-    }
     #[test]
-    fn make_n_grams_works() {
-        let expected = vec![
-            "123", "jos", "ose", "nun", "une", "nez", "812", "121", "211", "111", "117", "176",
-            "765", "654",
-        ];
+    fn make_tri_grams_works_multi_word() {
         assert_eq!(
-            make_trigrams_string("123 José Núñez 812-111-7654"),
-            expected
+            make_tri_grams("123 José  Núñez 812-111-7654"),
+            vec![
+                "123", "jos", "ose", "nun", "une", "nez", "812", "121", "211", "111", "117", "176",
+                "765", "654",
+            ]
         );
     }
 
     #[test]
-    fn make_n_grams_works_non_ascii() {
+    fn make_tri_grams_works_non_ascii() {
         assert_eq!(
-            make_trigrams_string("TİRYAKİ"),
+            make_tri_grams("TİRYAKİ"),
             ["tir", "iry", "rya", "yak", "aki"]
         );
     }
+
+    #[test]
+    fn make_tri_grams_works_short_non_ascii() {
+        assert_eq!(make_tri_grams("Tİ"), ["ti-"]);
+    }
+
+    #[test]
+    fn make_tri_grams_works_multichar_translate() {
+        assert_eq!(make_tri_grams("志    豪 İ"), ["zhi", "hao", "i--"]);
+    }
+
+    #[test]
+    fn make_tri_grams_works_arabic() {
+        assert_eq!(make_tri_grams("شريط فو"), ["shr", "hry", "ryt", "fw-"]);
+    }
+    #[test]
+    fn make_tri_grams_works_short_multibyte() {
+        assert_eq!(
+            make_tri_grams("\u{102AE}\u{102AF}"),
+            ["\u{102AE}\u{102AF}-"]
+        );
+    }
+
+    #[test]
+    fn char_to_trans_latinizable() {
+        assert_eq!(char_to_trans('İ'), "i")
+    }
+
+    #[test]
+    fn char_to_trans_not_latinizable() {
+        let c = "\u{102AE}".chars().nth(0).unwrap();
+        assert_eq!(char_to_trans(c), "\u{102AE}")
+    }
     #[test]
     fn make_index_works_compute_known_value() {
-        let result = make_index("123", "foo", &[0u8; 32]);
+        let result = make_index_tri_grams("123", "foo", &[0u8; 1]);
+        //We compute this to catch cases where this computation might change.
         let expected_result = {
             let mut hasher = Sha256::new();
             hasher.input("foo".as_bytes());
-            hasher.input([0u8; 32]);
+            hasher.input([0u8; 1]);
             hasher.input("123");
-            as_u32_be_unsafe(&hasher.result()[..])
+            as_u32_be(&(hasher.result().into()))
         };
         assert_eq!(result, vec![expected_result]);
     }
