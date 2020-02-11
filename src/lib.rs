@@ -36,12 +36,9 @@ pub fn make_tri_grams(s: &str) -> Vec<String> {
     let string_without_special_chars = SPECIAL_CHAR.replace_all(s, "");
     let converted_string: String = string_without_special_chars
         .chars()
-        .flat_map(|c| {
-            let s: String = char_to_trans(c);
-            s.chars().collect::<Vec<_>>()
-        })
+        .map(char_to_trans)
         .collect();
-    let result = converted_string
+    converted_string
         ._words()
         .into_iter()
         .map(|short_word| {
@@ -54,20 +51,13 @@ pub fn make_tri_grams(s: &str) -> Vec<String> {
             }
         })
         .flat_map(|word| word_to_trigrams(&word))
-        .collect::<Vec<_>>();
-    result
+        .collect()
 }
 
 pub fn word_to_trigrams(s: &str) -> Vec<String> {
     s.chars()
         .tuple_windows()
-        .map(|(c1, c2, c3)| {
-            let mut result = String::with_capacity(3);
-            result.push(c1);
-            result.push(c2);
-            result.push(c3);
-            result
-        })
+        .map(|(c1, c2, c3)| format!("{}{}{}", c1, c2, c3))
         .collect()
 }
 
