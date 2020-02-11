@@ -12,12 +12,12 @@ lazy_static! {
 
 /// Make an index, for the string s considering all tri-grams.
 /// The string will be latinised, lowercased and stripped of special chars before being broken into tri-grams.
-/// The values will be prefixed with key and salt before being hashed.
+/// The values will be prefixed with partition_id and salt before being hashed.
 /// Each entry in the Vec will be truncated to 32 bits and will be encoded as a big endian number.
-pub fn make_index_tri_grams(s: &str, key: Option<&str>, salt: &[u8]) -> Vec<u32> {
+pub fn generate_hashes_for_string(s: &str, partition_id: Option<&str>, salt: &[u8]) -> Vec<u32> {
     let short_hash = |word: &[u8]| -> u32 {
         let mut hasher = Sha256::new();
-        key.iter().for_each(|k| hasher.input(k.as_bytes()));
+        partition_id.iter().for_each(|k| hasher.input(k.as_bytes()));
         hasher.input(salt);
         hasher.input(word);
         as_u32_be(&hasher.result().into())
@@ -58,7 +58,7 @@ pub fn make_tri_grams(s: &str) -> Vec<String> {
     result
 }
 
-fn word_to_trigrams(s: &str) -> Vec<String> {
+pub fn word_to_trigrams(s: &str) -> Vec<String> {
     s.chars()
         .tuple_windows()
         .map(|(c1, c2, c3)| {
@@ -145,8 +145,8 @@ mod tests {
         assert_eq!(char_to_trans(c), "\u{102AE}")
     }
     #[test]
-    fn make_index_works_compute_known_value() {
-        let result = make_index_tri_grams("123", "foo", &[0u8; 1]);
+    fn generate_hashes_for_string_compute_known_value() {
+        let result = generate_hashes_for_string("123", Some("foo"), &[0u8; 1]);
         //We compute this to catch cases where this computation might change.
         let expected_result = {
             let mut hasher = Sha256::new();
