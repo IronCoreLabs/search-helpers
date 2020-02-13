@@ -36,7 +36,7 @@ pub fn generate_hashes_for_string(s: &str, partition_id: Option<&str>, salt: &[u
 /// If s is empty, the resulting vec will also be empty.
 /// If s is shorter than 3, '-' padding will be added to the end.
 /// All Strings inside of the resulting Vec will always be of size 3.
-pub fn make_tri_grams(s: &str) -> Vec<String> {
+fn make_tri_grams(s: &str) -> Vec<String> {
     let string_without_special_chars = SPECIAL_CHAR.replace_all(s, "");
     let converted_string: String = string_without_special_chars
         .chars()
@@ -58,7 +58,7 @@ pub fn make_tri_grams(s: &str) -> Vec<String> {
         .collect()
 }
 
-pub fn word_to_trigrams(s: &str) -> Vec<String> {
+fn word_to_trigrams(s: &str) -> Vec<String> {
     s.chars()
         .tuple_windows()
         .map(|(c1, c2, c3)| format!("{}{}{}", c1, c2, c3))
@@ -75,7 +75,7 @@ fn char_to_trans(c: char) -> String {
     }
 }
 
-///Interpret the first 4 bytes as a u32
+///Interpret the most significant 4 bytes as a bigendian u32
 #[inline]
 fn as_u32_be(slice: &[u8; 32]) -> u32 {
     ((slice[0] as u32) << 24)
@@ -87,6 +87,25 @@ fn as_u32_be(slice: &[u8; 32]) -> u32 {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn as_u32_be_known_result() {
+        let known_result = 16909060u32; //16777216 + 131072 + 768 + 4
+        let mut input = [0u8; 32];
+        input[0] = 1;
+        input[1] = 2;
+        input[2] = 3;
+        input[3] = 4;
+        let result = as_u32_be(&input);
+        assert_eq!(result, known_result);
+    }
+
+    #[test]
+    fn word_to_trigrams_known() {
+        let result = word_to_trigrams("five");
+        assert_eq!(result, ["fiv", "ive"]);
+    }
+
     #[test]
     fn make_tri_grams_works_multi_word() {
         assert_eq!(
