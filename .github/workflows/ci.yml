@@ -9,13 +9,12 @@ on:
       - master
 
 jobs:
+  ci:
+    runs-on: ubuntu-18.04
 
-ci:
-  runs-on: ubuntu-18.04
-
-  steps:
-    - uses: actions/checkout@v2
-    - name: Check
-      run: cargo check --verbose
-    - name: Run tests
-      run: cargo test --verbose
+    steps:
+      - uses: actions/checkout@v2
+      - name: Check
+        run: cargo check --verbose
+      - name: Run tests
+        run: cargo test --verbose

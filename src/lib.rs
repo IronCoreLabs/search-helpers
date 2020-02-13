@@ -15,12 +15,16 @@ lazy_static! {
 /// The values will be prefixed with partition_id and salt before being hashed.
 /// Each entry in the Vec will be truncated to 32 bits and will be encoded as a big endian number.
 pub fn generate_hashes_for_string(s: &str, partition_id: Option<&str>, salt: &[u8]) -> Vec<u32> {
+    //Compute a partial sha256 with the partition_id and the salt - We can reuse this for each word
+    let partial_sha256 = partition_id
+        .map(|k| k.as_bytes())
+        .iter()
+        .chain([salt].iter())
+        .fold(Sha256::new(), |hasher, k| hasher.chain(k));
+
     let short_hash = |word: &[u8]| -> u32 {
-        let mut hasher = Sha256::new();
-        partition_id.iter().for_each(|k| hasher.input(k.as_bytes()));
-        hasher.input(salt);
-        hasher.input(word);
-        as_u32_be(&hasher.result().into())
+        let sha256_hash = partial_sha256.clone().chain(word);
+        as_u32_be(&sha256_hash.result().into())
     };
 
     make_tri_grams(s)
