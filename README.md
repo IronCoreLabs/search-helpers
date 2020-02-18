@@ -1,5 +1,7 @@
 # Search Helpers
 
+![Rust](https://github.com/IronCoreLabs/search-helpers/workflows/Rust/badge.svg)
+
 This is a crate of some generic encrypted search helpers which can be used to create blind indexes.
 
 For now this supports is being able to create an index on strings using tri-grams. The tri-grams are hashed
