@@ -2,6 +2,7 @@ use itertools::*;
 use lazy_static::*;
 use regex::Regex;
 use sha2::{Digest, Sha256};
+use std::collections::HashSet;
 use unidecode::unidecode_char;
 use voca_rs::*;
 
@@ -14,7 +15,11 @@ lazy_static! {
 /// The string will be latinised, lowercased and stripped of special chars before being broken into tri-grams.
 /// The values will be prefixed with partition_id and salt before being hashed.
 /// Each entry in the Vec will be truncated to 32 bits and will be encoded as a big endian number.
-pub fn generate_hashes_for_string(s: &str, partition_id: Option<&str>, salt: &[u8]) -> Vec<u32> {
+pub fn generate_hashes_for_string(
+    s: &str,
+    partition_id: Option<&str>,
+    salt: &[u8],
+) -> HashSet<u32> {
     //Compute a partial sha256 with the partition_id and the salt - We can reuse this for each word
     let partial_sha256 = partition_id
         .map(|k| k.as_bytes())
@@ -33,10 +38,10 @@ pub fn generate_hashes_for_string(s: &str, partition_id: Option<&str>, salt: &[u
         .collect()
 }
 
-/// If s is empty, the resulting vec will also be empty.
+/// If s is empty, the resulting set will also be empty.
 /// If s is shorter than 3, '-' padding will be added to the end.
-/// All Strings inside of the resulting Vec will always be of size 3.
-fn make_tri_grams(s: &str) -> Vec<String> {
+/// All Strings inside of the resulting set will always be of size 3.
+fn make_tri_grams(s: &str) -> HashSet<String> {
     let string_without_special_chars = SPECIAL_CHAR.replace_all(s, "");
     let converted_string: String = string_without_special_chars
         .chars()
@@ -58,7 +63,7 @@ fn make_tri_grams(s: &str) -> Vec<String> {
         .collect()
 }
 
-fn word_to_trigrams(s: &str) -> Vec<String> {
+fn word_to_trigrams(s: &str) -> HashSet<String> {
     s.chars()
         .tuple_windows()
         .map(|(c1, c2, c3)| format!("{}{}{}", c1, c2, c3))
@@ -88,6 +93,13 @@ fn as_u32_be(slice: &[u8; 32]) -> u32 {
 mod tests {
     use super::*;
 
+    fn make_set(array: &[&str]) -> HashSet<String> {
+        array
+            .into_iter()
+            .map(|&s| From::from(s))
+            .collect::<HashSet<_>>()
+    }
+
     #[test]
     fn as_u32_be_known_result() {
         let known_result = 16909060u32; //16777216 + 131072 + 768 + 4
@@ -103,17 +115,17 @@ mod tests {
     #[test]
     fn word_to_trigrams_known() {
         let result = word_to_trigrams("five");
-        assert_eq!(result, ["fiv", "ive"]);
+        assert_eq!(result, make_set(&["fiv", "ive"]));
     }
 
     #[test]
     fn make_tri_grams_works_multi_word() {
         assert_eq!(
             make_tri_grams("123 José  Núñez 812-111-7654"),
-            vec![
+            make_set(&[
                 "123", "jos", "ose", "nun", "une", "nez", "812", "121", "211", "111", "117", "176",
                 "765", "654",
-            ]
+            ])
         );
     }
 
@@ -121,29 +133,43 @@ mod tests {
     fn make_tri_grams_works_non_ascii() {
         assert_eq!(
             make_tri_grams("TİRYAKİ"),
-            ["tir", "iry", "rya", "yak", "aki"]
+            make_set(&["tir", "iry", "rya", "yak", "aki"])
+        );
+    }
+
+    #[test]
+    fn make_tri_grams_eliminates_duplicates() {
+        assert_eq!(
+            make_tri_grams("TİRYAKİ TİRYAKİ"),
+            make_set(&["tir", "iry", "rya", "yak", "aki"])
         );
     }
 
     #[test]
     fn make_tri_grams_works_short_non_ascii() {
-        assert_eq!(make_tri_grams("Tİ"), ["ti-"]);
+        assert_eq!(make_tri_grams("Tİ"), make_set(&["ti-"]));
     }
 
     #[test]
     fn make_tri_grams_works_multichar_translate() {
-        assert_eq!(make_tri_grams("志    豪 İ"), ["zhi", "hao", "i--"]);
+        assert_eq!(
+            make_tri_grams("志    豪 İ"),
+            make_set(&["zhi", "hao", "i--"])
+        );
     }
 
     #[test]
     fn make_tri_grams_works_arabic() {
-        assert_eq!(make_tri_grams("شريط فو"), ["shr", "hry", "ryt", "fw-"]);
+        assert_eq!(
+            make_tri_grams("شريط فو"),
+            make_set(&["shr", "hry", "ryt", "fw-"])
+        );
     }
     #[test]
     fn make_tri_grams_works_short_multibyte() {
         assert_eq!(
             make_tri_grams("\u{102AE}\u{102AF}"),
-            ["\u{102AE}\u{102AF}-"]
+            make_set(&["\u{102AE}\u{102AF}-"])
         );
     }
 
@@ -168,6 +194,6 @@ mod tests {
             hasher.input("123");
             as_u32_be(&(hasher.result().into()))
         };
-        assert_eq!(result, vec![expected_result]);
+        assert_eq!(result, [expected_result].iter().map(|x| *x).collect());
     }
 }
