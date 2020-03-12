@@ -14,7 +14,8 @@ use Result::{Err, Ok};
 lazy_static! {
     ///Special chars that should be filtered out.
     static ref SPECIAL_CHAR: Regex = Regex::new(r#"[!@#$%^&*(){}_<>:;,."'`|+=/~\[\]\\-]"#).unwrap_or_else(|e| panic!("Developer error. Bad regex {:?}", e));
-    static ref ALL_U32:Uniform<u32> = Uniform::new_inclusive(0u32, u32::max_value());
+    static ref ALL_U32: Uniform<u32> = Uniform::new_inclusive(0u32, u32::max_value());
+    //We use this so we don't have to generate the floating numbers and do comparisons on them. It allows us to do 1/2 percent level scaling.
     static ref ONE_TO_TWO_HUNDRED: Uniform<u8> = Uniform::new_inclusive(1, 200);
 }
 
