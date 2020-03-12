@@ -19,12 +19,13 @@ lazy_static! {
     static ref ONE_TO_TWO_HUNDRED: Uniform<u8> = Uniform::new_inclusive(1, 200);
 }
 
-const MAX_HASHES_SIZE: usize = 225;
+///Something over 200 chars isn't really suitable for this approach, so we won't accept it.
+const MAX_STRING_LEN: usize = 200;
 
 /// Make an index, for the string s considering all tri-grams.
 /// The string will be latinised, lowercased and stripped of special chars before being broken into tri-grams.
 /// The values will be prefixed with partition_id and salt before being hashed.
-/// Each entry in the HasheSet will be truncated to 32 bits and will be encoded as a big endian number.
+/// Each entry in the HashSet will be truncated to 32 bits and will be encoded as a big endian number.
 /// This function will also add some random entries to the HashSet to not expose how many tri-grams were actually found.
 pub fn generate_hashes_for_string_with_padding<R: Rng + CryptoRng>(
     s: &str,
@@ -48,8 +49,9 @@ pub fn generate_hashes_for_string_with_padding<R: Rng + CryptoRng>(
             r.gen_range(1, 5)
         }
     };
-    //This will never be negative because generate_hashes_for_string would error if hashes was going to be larger than and will never be larger than MAX_HASHES_SIZE.
-    let pad_len = std::cmp::min(MAX_HASHES_SIZE - hashes.len(), to_add as usize);
+    //This will never be negative because generate_hashes_for_string would error if hashes was going to be larger than and will never be larger than MAX_STRING_LEN.
+    //This also ensures we're able to pad by at least 2 since the maximum trigram length is always 2 less than the max string length.
+    let pad_len = std::cmp::min(MAX_STRING_LEN - hashes.len(), to_add as usize);
     hashes.extend(
         take_lock(&rng)
             .deref_mut()
@@ -63,31 +65,31 @@ pub fn generate_hashes_for_string_with_padding<R: Rng + CryptoRng>(
 /// The string will be latinised, lowercased and stripped of special chars before being broken into tri-grams.
 /// The values will be prefixed with partition_id and salt before being hashed.
 /// Each entry in the HasheSet will be truncated to 32 bits and will be encoded as a big endian number.
+/// If the string is longer than 200 characters, this will return an error.
 pub fn generate_hashes_for_string(
     s: &str,
     partition_id: Option<&str>,
     salt: &[u8],
 ) -> Result<HashSet<u32>, String> {
-    //Compute a partial sha256 with the partition_id and the salt - We can reuse this for each word
-    let partial_sha256 = partition_id
-        .map(|k| k.as_bytes())
-        .iter()
-        .chain([salt].iter())
-        .fold(Sha256::new(), |hasher, k| hasher.chain(k));
-
-    let short_hash = |word: &[u8]| -> u32 {
-        let sha256_hash = partial_sha256.clone().chain(word);
-        as_u32_be(&sha256_hash.result().into())
-    };
-
-    let result: HashSet<_> = make_tri_grams(s)
-        .iter()
-        .map(|tri_gram| short_hash(tri_gram.as_bytes()))
-        .take(MAX_HASHES_SIZE + 1) //Take 1 more than the max so we can detect it. Since this is lazy it could save us work.
-        .collect();
-    if result.len() > MAX_HASHES_SIZE {
-        Err(format!("The input produced too many trigrams. This function only supports strings that produce less than {} trigrams", MAX_HASHES_SIZE))
+    if s.len() > MAX_STRING_LEN {
+        Err(format!("The input string is too long. This function only supports strings that are shorter than {} chars.", MAX_STRING_LEN))
     } else {
+        //Compute a partial sha256 with the partition_id and the salt - We can reuse this for each word
+        let partial_sha256 = partition_id
+            .map(|k| k.as_bytes())
+            .iter()
+            .chain([salt].iter())
+            .fold(Sha256::new(), |hasher, k| hasher.chain(k));
+
+        let short_hash = |word: &[u8]| -> u32 {
+            let sha256_hash = partial_sha256.clone().chain(word);
+            as_u32_be(&sha256_hash.result().into())
+        };
+
+        let result: HashSet<_> = make_tri_grams(s)
+            .iter()
+            .map(|tri_gram| short_hash(tri_gram.as_bytes()))
+            .collect();
         Ok(result)
     }
 }
@@ -151,7 +153,7 @@ fn as_u32_be(slice: &[u8; 32]) -> u32 {
 /// single statement (mut)
 /// `let result = take_lock(&t).deref_mut().call_method_on_t();`
 ///
-/// mutli-statement (mut)
+/// multi-statement (mut)
 ///
 /// ```ignore
 /// let t = T {};
@@ -291,7 +293,7 @@ mod tests {
         let rng = ThreadRng::default();
         let input: String = rng
             .sample_iter(rand::distributions::Alphanumeric)
-            .take(1000)
+            .take(201)
             .collect();
         generate_hashes_for_string(&input, Some("foo"), &[0u8; 1]).unwrap_err();
         Ok(())
