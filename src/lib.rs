@@ -48,6 +48,7 @@ pub fn generate_hashes_for_string_with_padding<R: Rng + CryptoRng>(
             r.gen_range(1, 5)
         }
     };
+    //This will never be negative because generate_hashes_for_string would error if hashes was going to be larger than and will never be larger than MAX_HASHES_SIZE.
     let pad_len = std::cmp::min(MAX_HASHES_SIZE - hashes.len(), to_add as usize);
     hashes.extend(
         take_lock(&rng)
@@ -82,6 +83,7 @@ pub fn generate_hashes_for_string(
     let result: HashSet<_> = make_tri_grams(s)
         .iter()
         .map(|tri_gram| short_hash(tri_gram.as_bytes()))
+        .take(MAX_HASHES_SIZE + 1) //Take 1 more than the max so we can detect it. Since this is lazy it could save us work.
         .collect();
     if result.len() > MAX_HASHES_SIZE {
         Err(format!("The input produced too many trigrams. This function only supports strings that produce less than {} trigrams", MAX_HASHES_SIZE))
