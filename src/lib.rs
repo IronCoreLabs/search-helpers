@@ -289,6 +289,14 @@ mod tests {
     }
 
     #[test]
+    fn generate_hashes_for_string_with_padding_empty_string() -> Result<(), String> {
+        let rng = Mutex::new(ThreadRng::default());
+        let result = generate_hashes_for_string_with_padding("", Some("foo"), &[0u8; 1], &rng)?;
+        assert!(result.len() >= 1);
+        Ok(())
+    }
+
+    #[test]
     fn generate_hashes_for_string_too_long_errors() -> Result<(), String> {
         let rng = ThreadRng::default();
         let input: String = rng
