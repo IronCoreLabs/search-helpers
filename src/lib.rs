@@ -72,7 +72,7 @@ pub fn generate_hashes_for_string(
     salt: &[u8],
 ) -> Result<HashSet<u32>, String> {
     if s.len() > MAX_STRING_LEN {
-        Err(format!("The input string is too long. This function only supports strings that are shorter than {} chars.", MAX_STRING_LEN))
+        Err(format!("The input string is too long. This function only supports strings that are no longer than {} chars.", MAX_STRING_LEN))
     } else {
         //Compute a partial sha256 with the partition_id and the salt - We can reuse this for each word
         let partial_sha256 = partition_id
