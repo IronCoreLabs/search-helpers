@@ -1,25 +1,71 @@
 use itertools::*;
 use lazy_static::*;
+use rand::distributions::*;
+use rand::{CryptoRng, Rng};
 use regex::Regex;
 use sha2::{Digest, Sha256};
 use std::collections::HashSet;
+use std::ops::DerefMut;
+use std::sync::{Mutex, MutexGuard};
 use unidecode::unidecode_char;
 use voca_rs::*;
+use Result::{Err, Ok};
 
 lazy_static! {
     ///Special chars that should be filtered out.
     static ref SPECIAL_CHAR: Regex = Regex::new(r#"[!@#$%^&*(){}_<>:;,."'`|+=/~\[\]\\-]"#).unwrap_or_else(|e| panic!("Developer error. Bad regex {:?}", e));
+    static ref ALL_U32:Uniform<u32> = Uniform::new_inclusive(0u32, u32::max_value());
+    static ref ONE_TO_TWO_HUNDRED: Uniform<u8> = Uniform::new_inclusive(1, 200);
+}
+
+const MAX_HASHES_SIZE: usize = 225;
+
+/// Make an index, for the string s considering all tri-grams.
+/// The string will be latinised, lowercased and stripped of special chars before being broken into tri-grams.
+/// The values will be prefixed with partition_id and salt before being hashed.
+/// Each entry in the HasheSet will be truncated to 32 bits and will be encoded as a big endian number.
+/// This function will also add some random entries to the HashSet to not expose how many tri-grams were actually found.
+pub fn generate_hashes_for_string_with_padding<R: Rng + CryptoRng>(
+    s: &str,
+    partition_id: Option<&str>,
+    salt: &[u8],
+    rng: &Mutex<R>,
+) -> Result<HashSet<u32>, String> {
+    let mut hashes = generate_hashes_for_string(s, partition_id, salt)?;
+
+    let prob = take_lock(&rng).deref_mut().sample(*ONE_TO_TWO_HUNDRED);
+    let to_add: u8 = {
+        //Just take the lock once because we need it in all cases and it makes the code look better.
+        let r = &mut *take_lock(&rng);
+        if prob <= 1 {
+            r.gen_range(1, 200)
+        } else if prob <= 5 {
+            r.gen_range(1, 30)
+        } else if prob <= 50 {
+            r.gen_range(1, 10)
+        } else {
+            r.gen_range(1, 5)
+        }
+    };
+    let pad_len = std::cmp::min(MAX_HASHES_SIZE - hashes.len(), to_add as usize);
+    hashes.extend(
+        take_lock(&rng)
+            .deref_mut()
+            .sample_iter(*ALL_U32)
+            .take(pad_len),
+    );
+    Ok(hashes)
 }
 
 /// Make an index, for the string s considering all tri-grams.
 /// The string will be latinised, lowercased and stripped of special chars before being broken into tri-grams.
 /// The values will be prefixed with partition_id and salt before being hashed.
-/// Each entry in the Vec will be truncated to 32 bits and will be encoded as a big endian number.
+/// Each entry in the HasheSet will be truncated to 32 bits and will be encoded as a big endian number.
 pub fn generate_hashes_for_string(
     s: &str,
     partition_id: Option<&str>,
     salt: &[u8],
-) -> HashSet<u32> {
+) -> Result<HashSet<u32>, String> {
     //Compute a partial sha256 with the partition_id and the salt - We can reuse this for each word
     let partial_sha256 = partition_id
         .map(|k| k.as_bytes())
@@ -32,10 +78,15 @@ pub fn generate_hashes_for_string(
         as_u32_be(&sha256_hash.result().into())
     };
 
-    make_tri_grams(s)
+    let result: HashSet<_> = make_tri_grams(s)
         .iter()
         .map(|tri_gram| short_hash(tri_gram.as_bytes()))
-        .collect()
+        .collect();
+    if result.len() > MAX_HASHES_SIZE {
+        Err(format!("The input produced too many trigrams. This function only supports strings that produce less than {} trigrams", MAX_HASHES_SIZE))
+    } else {
+        Ok(result)
+    }
 }
 
 /// If s is empty, the resulting set will also be empty.
@@ -89,9 +140,35 @@ fn as_u32_be(slice: &[u8; 32]) -> u32 {
         + ((slice[3] as u32) << 0)
 }
 
+/// Acquire mutex in a blocking fashion. If the Mutex is or becomes poisoned, panic.
+///
+/// The lock is released when the returned MutexGuard falls out of scope.
+///
+/// # Usage:
+/// single statement (mut)
+/// `let result = take_lock(&t).deref_mut().call_method_on_t();`
+///
+/// mutli-statement (mut)
+///
+/// ```ignore
+/// let t = T {};
+/// let result = {
+///     let g = &mut *take_lock(&t);
+///     g.call_method_on_t()
+/// }; // lock released here
+/// ```
+///
+fn take_lock<T>(m: &Mutex<T>) -> MutexGuard<T> {
+    m.lock().unwrap_or_else(|e| {
+        let error = format!("Error when acquiring lock: {}", e);
+        panic!(error);
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use rand::rngs::ThreadRng;
 
     fn make_set(array: &[&str]) -> HashSet<String> {
         array
@@ -184,8 +261,8 @@ mod tests {
         assert_eq!(char_to_trans(c), "\u{102AE}")
     }
     #[test]
-    fn generate_hashes_for_string_compute_known_value() {
-        let result = generate_hashes_for_string("123", Some("foo"), &[0u8; 1]);
+    fn generate_hashes_for_string_compute_known_value() -> Result<(), String> {
+        let result = generate_hashes_for_string("123", Some("foo"), &[0u8; 1])?;
         //We compute this to catch cases where this computation might change.
         let expected_result = {
             let mut hasher = Sha256::new();
@@ -195,5 +272,25 @@ mod tests {
             as_u32_be(&(hasher.result().into()))
         };
         assert_eq!(result, [expected_result].iter().map(|x| *x).collect());
+        Ok(())
+    }
+
+    #[test]
+    fn generate_hashes_for_string_with_padding_adds_at_least_one() -> Result<(), String> {
+        let rng = Mutex::new(ThreadRng::default());
+        let result = generate_hashes_for_string_with_padding("123", Some("foo"), &[0u8; 1], &rng)?;
+        assert!(result.len() > 1);
+        Ok(())
+    }
+
+    #[test]
+    fn generate_hashes_for_string_too_long_errors() -> Result<(), String> {
+        let rng = ThreadRng::default();
+        let input: String = rng
+            .sample_iter(rand::distributions::Alphanumeric)
+            .take(1000)
+            .collect();
+        generate_hashes_for_string(&input, Some("foo"), &[0u8; 1]).unwrap_err();
+        Ok(())
     }
 }
