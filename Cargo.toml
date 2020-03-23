@@ -17,4 +17,4 @@ itertools = "~0.8.2"
 rand = "~0.7.3"
 # We pin these so they can't vary accidentially.
 unidecode = "=0.3.0"
-voca_rs = "=1.9.1"
+unicode-segmentation = "=1.6.0"

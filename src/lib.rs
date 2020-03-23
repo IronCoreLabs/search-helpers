@@ -7,8 +7,8 @@ use sha2::{Digest, Sha256};
 use std::collections::HashSet;
 use std::ops::DerefMut;
 use std::sync::{Mutex, MutexGuard};
+use unicode_segmentation::UnicodeSegmentation;
 use unidecode::unidecode_char;
-use voca_rs::*;
 use Result::{Err, Ok};
 
 lazy_static! {
@@ -104,7 +104,7 @@ fn make_tri_grams(s: &str) -> HashSet<String> {
         .map(char_to_trans)
         .collect();
     converted_string
-        ._words()
+        .unicode_words()
         .into_iter()
         .map(|short_word| {
             let short_word_len = short_word.chars().count();
