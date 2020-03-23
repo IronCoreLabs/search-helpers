@@ -1,4 +1,4 @@
-use itertools::*;
+// use itertools::*;
 use lazy_static::*;
 use rand::distributions::*;
 use rand::{CryptoRng, Rng};
@@ -127,8 +127,9 @@ fn make_tri_grams(s: &str) -> HashSet<String> {
 
 fn word_to_trigrams(s: &str) -> HashSet<String> {
     s.chars()
-        .tuple_windows()
-        .map(|(c1, c2, c3)| format!("{}{}{}", c1, c2, c3))
+        .map(|c| format!("{}", c))
+        // .tuple_windows()
+        // .map(|(c1, c2, c3)| format!("{}{}{}", c1, c2, c3))
         .collect()
 }
 
