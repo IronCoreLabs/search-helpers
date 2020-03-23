@@ -2,6 +2,11 @@
 name = "ironcore-search-helpers"
 version = "0.1.0"
 authors = ["Colt Frederickson <coltfred@gmail.com>"]
+readme = "README.md"
+license = "AGPL-3.0-only"
+categories = ["cryptography"]
+keywords = ["cryptography", "encrypted-search", "search"]
+description = "Search helpers for working with encrypted values, particularly on the IronCore platform."
 edition = "2018"
 
 [dependencies]
