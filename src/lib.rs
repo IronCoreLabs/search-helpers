@@ -6,7 +6,7 @@ use sha2::{Digest, Sha256};
 use std::collections::HashSet;
 use std::ops::DerefMut;
 use std::sync::{Mutex, MutexGuard};
-// use unicode_segmentation::UnicodeSegmentation;
+use unicode_segmentation::UnicodeSegmentation;
 use unidecode::unidecode_char;
 use Result::{Err, Ok};
 
@@ -110,7 +110,8 @@ fn make_tri_grams(s: &str) -> HashSet<String> {
         .filter(|c| !should_remove_char(c))
         .map(char_to_trans)
         .collect();
-    vec![converted_string]
+    converted_string
+        .unicode_words()
         .into_iter()
         .map(|short_word| {
             let short_word_len = short_word.chars().count();
