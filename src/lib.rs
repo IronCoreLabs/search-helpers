@@ -7,7 +7,7 @@ use std::collections::HashSet;
 use std::ops::DerefMut;
 use std::sync::{Mutex, MutexGuard};
 use unicode_segmentation::UnicodeSegmentation;
-use unidecode::unidecode_char;
+// use unidecode::unidecode_char;
 use Result::{Err, Ok};
 
 const FILTERED_CHARS: [char; 31] = [
@@ -135,7 +135,7 @@ fn word_to_trigrams(s: &str) -> HashSet<String> {
 
 ///Convert the char if we can, if we can't just create a string out of the character.
 fn char_to_trans(c: char) -> String {
-    let trans_string = unidecode_char(c);
+    let trans_string = format!("{}", c);
     if trans_string == "" {
         format!("{}", c)
     } else {
