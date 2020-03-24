@@ -1,12 +1,13 @@
-// use itertools::*;
-// use lazy_static::*;
+use itertools::*;
+use lazy_static::*;
+use rand::distributions::*;
 use rand::{CryptoRng, Rng};
 use sha2::{Digest, Sha256};
 use std::collections::HashSet;
-// use std::ops::DerefMut;
+use std::ops::DerefMut;
 use std::sync::{Mutex, MutexGuard};
-// use unicode_segmentation::UnicodeSegmentation;
-// use unidecode::unidecode_char;
+use unicode_segmentation::UnicodeSegmentation;
+use unidecode::unidecode_char;
 use Result::{Err, Ok};
 
 const FILTERED_CHARS: [char; 31] = [
@@ -17,6 +18,12 @@ const FILTERED_CHARS: [char; 31] = [
 ///Should we leave the character in or get rid of it
 fn should_remove_char(c: &char) -> bool {
     FILTERED_CHARS.contains(c)
+}
+lazy_static! {
+    ///Special chars that should be filtered out.
+    static ref ALL_U32: Uniform<u32> = Uniform::new_inclusive(0u32, u32::max_value());
+    //We use this so we don't have to generate the floating numbers and do comparisons on them. It allows us to do 1/2 percent level scaling.
+    static ref ONE_TO_TWO_HUNDRED: Uniform<u8> = Uniform::new_inclusive(1, 200);
 }
 
 ///Something over 200 chars isn't really suitable for this approach, so we won't accept it.
@@ -33,9 +40,9 @@ pub fn generate_hashes_for_string_with_padding<R: Rng + CryptoRng>(
     salt: &[u8],
     rng: &Mutex<R>,
 ) -> Result<HashSet<u32>, String> {
-    let hashes = generate_hashes_for_string(s, partition_id, salt)?;
+    let mut hashes = generate_hashes_for_string(s, partition_id, salt)?;
 
-    let prob = 0u8;
+    let prob = take_lock(&rng).deref_mut().sample(*ONE_TO_TWO_HUNDRED);
     let to_add: u8 = {
         //Just take the lock once because we need it in all cases and it makes the code look better.
         let r = &mut *take_lock(&rng);
@@ -51,13 +58,13 @@ pub fn generate_hashes_for_string_with_padding<R: Rng + CryptoRng>(
     };
     //This will never be negative because generate_hashes_for_string would error if hashes was going to be larger than and will never be larger than MAX_STRING_LEN.
     //This also ensures we're able to pad by at least 2 since the maximum trigram length is always 2 less than the max string length.
-    std::cmp::min(MAX_STRING_LEN - hashes.len(), to_add as usize);
-    // hashes.extend(
-    //     take_lock(&rng)
-    //         .deref_mut()
-    //         .sample_iter(*ALL_U32)
-    //         .take(pad_len),
-    // );
+    let pad_len = std::cmp::min(MAX_STRING_LEN - hashes.len(), to_add as usize);
+    hashes.extend(
+        take_lock(&rng)
+            .deref_mut()
+            .sample_iter(*ALL_U32)
+            .take(pad_len),
+    );
     Ok(hashes)
 }
 
@@ -103,7 +110,8 @@ fn make_tri_grams(s: &str) -> HashSet<String> {
         .filter(|c| !should_remove_char(c))
         .map(char_to_trans)
         .collect();
-    vec![converted_string]
+    converted_string
+        .unicode_words()
         .into_iter()
         .map(|short_word| {
             let short_word_len = short_word.chars().count();
@@ -120,15 +128,14 @@ fn make_tri_grams(s: &str) -> HashSet<String> {
 
 fn word_to_trigrams(s: &str) -> HashSet<String> {
     s.chars()
-        .map(|c| format!("{}", c))
-        // .tuple_windows()
-        // .map(|(c1, c2, c3)| format!("{}{}{}", c1, c2, c3))
+        .tuple_windows()
+        .map(|(c1, c2, c3)| format!("{}{}{}", c1, c2, c3))
         .collect()
 }
 
 ///Convert the char if we can, if we can't just create a string out of the character.
 fn char_to_trans(c: char) -> String {
-    let trans_string = format!("{}", c);
+    let trans_string = unidecode_char(c);
     if trans_string == "" {
         format!("{}", c)
     } else {
