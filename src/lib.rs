@@ -15,9 +15,9 @@ const FILTERED_CHARS: [char; 31] = [
     '"', '\'', '`', '|', '+', '=', '/', '~', '[', ']', '\\', '-',
 ];
 
-///Should we leave the character in or get rid of it
-fn should_remove_char(c: &char) -> bool {
-    FILTERED_CHARS.contains(c)
+///True if we should keep the character is the string.
+fn should_keep_char(c: &char) -> bool {
+    !FILTERED_CHARS.contains(c)
 }
 lazy_static! {
     ///Special chars that should be filtered out.
@@ -107,7 +107,7 @@ pub fn generate_hashes_for_string(
 fn make_tri_grams(s: &str) -> HashSet<String> {
     let converted_string: String = s
         .chars()
-        .filter(|c| !should_remove_char(c))
+        .filter(should_keep_char)
         .map(char_to_trans)
         .collect();
     converted_string
