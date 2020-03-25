@@ -2,18 +2,25 @@ use itertools::*;
 use lazy_static::*;
 use rand::distributions::*;
 use rand::{CryptoRng, Rng};
-use regex::Regex;
 use sha2::{Digest, Sha256};
 use std::collections::HashSet;
 use std::ops::DerefMut;
 use std::sync::{Mutex, MutexGuard};
+use unicode_segmentation::UnicodeSegmentation;
 use unidecode::unidecode_char;
-use voca_rs::*;
 use Result::{Err, Ok};
 
+const FILTERED_CHARS: [char; 31] = [
+    '!', '@', '#', '$', '%', '^', '&', '*', '(', ')', '{', '}', '_', '<', '>', ':', ';', ',', '.',
+    '"', '\'', '`', '|', '+', '=', '/', '~', '[', ']', '\\', '-',
+];
+
+///True if we should keep the character in the string.
+fn should_keep_char(c: &char) -> bool {
+    !FILTERED_CHARS.contains(c)
+}
 lazy_static! {
     ///Special chars that should be filtered out.
-    static ref SPECIAL_CHAR: Regex = Regex::new(r#"[!@#$%^&*(){}_<>:;,."'`|+=/~\[\]\\-]"#).unwrap_or_else(|e| panic!("Developer error. Bad regex {:?}", e));
     static ref ALL_U32: Uniform<u32> = Uniform::new_inclusive(0u32, u32::max_value());
     //We use this so we don't have to generate the floating numbers and do comparisons on them. It allows us to do 1/2 percent level scaling.
     static ref ONE_TO_TWO_HUNDRED: Uniform<u8> = Uniform::new_inclusive(1, 200);
@@ -98,13 +105,13 @@ pub fn generate_hashes_for_string(
 /// If s is shorter than 3, '-' padding will be added to the end.
 /// All Strings inside of the resulting set will always be of size 3.
 fn make_tri_grams(s: &str) -> HashSet<String> {
-    let string_without_special_chars = SPECIAL_CHAR.replace_all(s, "");
-    let converted_string: String = string_without_special_chars
+    let converted_string: String = s
         .chars()
+        .filter(should_keep_char)
         .map(char_to_trans)
         .collect();
     converted_string
-        ._words()
+        .unicode_words()
         .into_iter()
         .map(|short_word| {
             let short_word_len = short_word.chars().count();
