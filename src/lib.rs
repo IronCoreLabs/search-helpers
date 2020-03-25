@@ -15,7 +15,7 @@ const FILTERED_CHARS: [char; 31] = [
     '"', '\'', '`', '|', '+', '=', '/', '~', '[', ']', '\\', '-',
 ];
 
-///True if we should keep the character is the string.
+///True if we should keep the character in the string.
 fn should_keep_char(c: &char) -> bool {
     !FILTERED_CHARS.contains(c)
 }
