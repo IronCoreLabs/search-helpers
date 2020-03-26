@@ -101,15 +101,20 @@ pub fn generate_hashes_for_string(
     }
 }
 
+/// Generate a version of the input string where each character has been latinized using the
+/// same function as our tokenization routines.
+pub fn transliterate_string(s: &str) -> String {
+    s.chars()
+        .filter(should_keep_char)
+        .map(char_to_trans)
+        .collect()
+}
+
 /// If s is empty, the resulting set will also be empty.
 /// If s is shorter than 3, '-' padding will be added to the end.
 /// All Strings inside of the resulting set will always be of size 3.
 fn make_tri_grams(s: &str) -> HashSet<String> {
-    let converted_string: String = s
-        .chars()
-        .filter(should_keep_char)
-        .map(char_to_trans)
-        .collect();
+    let converted_string = transliterate_string(s);
     converted_string
         .unicode_words()
         .into_iter()
@@ -199,6 +204,13 @@ mod tests {
         input[3] = 4;
         let result = as_u32_be(&input);
         assert_eq!(result, known_result);
+    }
+
+    #[test]
+    fn string_transliterated() {
+        assert_eq!(transliterate_string("Gumby, dammit!"), "gumby dammit");
+        assert_eq!(transliterate_string("北亰"), "bei jing ");
+        assert_eq!(transliterate_string("Æneid"), "aeneid");
     }
 
     #[test]
