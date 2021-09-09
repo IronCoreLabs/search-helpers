@@ -10,7 +10,7 @@ description = "Search helpers for working with encrypted values, particularly on
 edition = "2018"
 
 [dependencies]
-sha2 = "~0.8.1"
+sha2 = "~0.9.8"
 lazy_static = "~1.4.0"
 itertools = "~0.10.0"
 rand = "~0.7.3"
