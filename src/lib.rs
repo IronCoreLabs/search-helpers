@@ -47,13 +47,13 @@ pub fn generate_hashes_for_string_with_padding<R: Rng + CryptoRng>(
         //Just take the lock once because we need it in all cases and it makes the code look better.
         let r = &mut *take_lock(&rng);
         if prob <= 1 {
-            r.gen_range(1, 200)
+            r.gen_range(1..200)
         } else if prob <= 5 {
-            r.gen_range(1, 30)
+            r.gen_range(1..30)
         } else if prob <= 50 {
-            r.gen_range(1, 10)
+            r.gen_range(1..10)
         } else {
-            r.gen_range(1, 5)
+            r.gen_range(1..5)
         }
     };
     //This will never be negative because generate_hashes_for_string would error if hashes was going to be larger than and will never be larger than MAX_STRING_LEN.
@@ -90,7 +90,7 @@ pub fn generate_hashes_for_string(
 
         let short_hash = |word: &[u8]| -> u32 {
             let sha256_hash = partial_sha256.clone().chain(word);
-            as_u32_be(&sha256_hash.result().into())
+            as_u32_be(&sha256_hash.finalize().into())
         };
 
         let result: HashSet<_> = make_tri_grams(s)
@@ -178,7 +178,7 @@ fn as_u32_be(slice: &[u8; 32]) -> u32 {
 fn take_lock<T>(m: &Mutex<T>) -> MutexGuard<T> {
     m.lock().unwrap_or_else(|e| {
         let error = format!("Error when acquiring lock: {}", e);
-        panic!(error);
+        panic!("{}", error);
     })
 }
 
@@ -290,10 +290,10 @@ mod tests {
         //We compute this to catch cases where this computation might change.
         let expected_result = {
             let mut hasher = Sha256::new();
-            hasher.input("foo".as_bytes());
-            hasher.input([0u8; 1]);
-            hasher.input("123");
-            as_u32_be(&(hasher.result().into()))
+            hasher.update("foo".as_bytes());
+            hasher.update([0u8; 1]);
+            hasher.update("123");
+            as_u32_be(&(hasher.finalize().into()))
         };
         assert_eq!(result, [expected_result].iter().map(|x| *x).collect());
         Ok(())
@@ -318,11 +318,12 @@ mod tests {
     #[test]
     fn generate_hashes_for_string_too_long_errors() -> Result<(), String> {
         let rng = ThreadRng::default();
-        let input: String = rng
+        let input: Vec<u8> = rng
             .sample_iter(rand::distributions::Alphanumeric)
             .take(201)
             .collect();
-        generate_hashes_for_string(&input, Some("foo"), &[0u8; 1]).unwrap_err();
+        generate_hashes_for_string(std::str::from_utf8(&input).unwrap(), Some("foo"), &[0u8; 1])
+            .unwrap_err();
         Ok(())
     }
 }
