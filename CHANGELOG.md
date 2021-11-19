@@ -2,8 +2,8 @@
 
 ## 0.2.0
 
-- [[]()] Bump MSRV to 1.56.0
-- [[]()] Dependency updates
+- [[#28](https://github.com/IronCoreLabs/search-helpers/pull/28)] Bump MSRV to 1.56.0
+- [[#28](https://github.com/IronCoreLabs/search-helpers/pull/28)] Dependency updates
 
 ## 0.1.2
 
