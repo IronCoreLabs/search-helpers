@@ -2,6 +2,7 @@ use itertools::*;
 use lazy_static::*;
 use rand::distributions::*;
 use rand::{CryptoRng, Rng};
+use sha2::digest::Update;
 use sha2::{Digest, Sha256};
 use std::collections::HashSet;
 use std::ops::DerefMut;
@@ -290,9 +291,9 @@ mod tests {
         //We compute this to catch cases where this computation might change.
         let expected_result = {
             let mut hasher = Sha256::new();
-            hasher.update("foo".as_bytes());
-            hasher.update([0u8; 1]);
-            hasher.update("123");
+            sha2::Digest::update(&mut hasher, "foo".as_bytes());
+            sha2::Digest::update(&mut hasher, [0u8; 1]);
+            sha2::Digest::update(&mut hasher, "123".as_bytes());
             as_u32_be(&(hasher.finalize().into()))
         };
         assert_eq!(result, [expected_result].iter().map(|x| *x).collect());
