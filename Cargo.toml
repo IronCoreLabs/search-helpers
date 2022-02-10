@@ -17,4 +17,4 @@ itertools = "0.10"
 rand = "0.8"
 # We pin these so they can't vary accidentally.
 unidecode = "=0.3.0"
-unicode-segmentation = "=1.8.0"
+unicode-segmentation = "=1.9.0"
