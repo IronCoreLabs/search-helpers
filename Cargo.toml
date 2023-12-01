@@ -13,7 +13,7 @@ rust-version = "1.56.0"
 [dependencies]
 sha2 = "0.10"
 lazy_static = "1.4"
-itertools = "0.11"
+itertools = "0.12"
 rand = "0.8"
 # We pin these so they can't vary accidentally.
 unidecode = "=0.3.0"
