@@ -1,6 +1,6 @@
 use itertools::*;
 use lazy_static::*;
-use rand::distributions::*;
+use rand::distr::Uniform;
 use rand::{CryptoRng, Rng};
 use sha2::digest::Update;
 use sha2::{Digest, Sha256};
@@ -22,9 +22,9 @@ fn should_keep_char(c: &char) -> bool {
 }
 lazy_static! {
     ///Special chars that should be filtered out.
-    static ref ALL_U32: Uniform<u32> = Uniform::new_inclusive(0u32, u32::max_value());
+    static ref ALL_U32: Uniform<u32> = Uniform::new_inclusive(0u32, u32::max_value()).unwrap(); //safe because low < high
     //We use this so we don't have to generate the floating numbers and do comparisons on them. It allows us to do 1/2 percent level scaling.
-    static ref ONE_TO_TWO_HUNDRED: Uniform<u8> = Uniform::new_inclusive(1, 200);
+    static ref ONE_TO_TWO_HUNDRED: Uniform<u8> = Uniform::new_inclusive(1, 200).unwrap(); // safe because low < high
 }
 
 ///Something over 200 chars isn't really suitable for this approach, so we won't accept it.
@@ -48,13 +48,13 @@ pub fn generate_hashes_for_string_with_padding<R: Rng + CryptoRng>(
         //Just take the lock once because we need it in all cases and it makes the code look better.
         let r = &mut *take_lock(&rng);
         if prob <= 1 {
-            r.gen_range(1..200)
+            r.random_range(1..200)
         } else if prob <= 5 {
-            r.gen_range(1..30)
+            r.random_range(1..30)
         } else if prob <= 50 {
-            r.gen_range(1..10)
+            r.random_range(1..10)
         } else {
-            r.gen_range(1..5)
+            r.random_range(1..5)
         }
     };
     //This will never be negative because generate_hashes_for_string would error if hashes was going to be larger than and will never be larger than MAX_STRING_LEN.
@@ -186,7 +186,7 @@ fn take_lock<T>(m: &Mutex<T>) -> MutexGuard<T> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use rand::rngs::ThreadRng;
+    use rand::{distr::Alphanumeric, rngs::ThreadRng};
 
     fn make_set(array: &[&str]) -> HashSet<String> {
         array
@@ -319,10 +319,7 @@ mod tests {
     #[test]
     fn generate_hashes_for_string_too_long_errors() -> Result<(), String> {
         let rng = ThreadRng::default();
-        let input: Vec<u8> = rng
-            .sample_iter(rand::distributions::Alphanumeric)
-            .take(201)
-            .collect();
+        let input: Vec<u8> = rng.sample_iter(Alphanumeric).take(201).collect();
         generate_hashes_for_string(std::str::from_utf8(&input).unwrap(), Some("foo"), &[0u8; 1])
             .unwrap_err();
         Ok(())
