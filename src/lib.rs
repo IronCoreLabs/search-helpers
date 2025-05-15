@@ -1,3 +1,4 @@
+use Result::{Err, Ok};
 use itertools::*;
 use lazy_static::*;
 use rand::distr::Uniform;
@@ -9,7 +10,6 @@ use std::ops::DerefMut;
 use std::sync::{Mutex, MutexGuard};
 use unicode_segmentation::UnicodeSegmentation;
 use unidecode::unidecode_char;
-use Result::{Err, Ok};
 
 const FILTERED_CHARS: [char; 31] = [
     '!', '@', '#', '$', '%', '^', '&', '*', '(', ')', '{', '}', '_', '<', '>', ':', ';', ',', '.',
@@ -22,7 +22,7 @@ fn should_keep_char(c: &char) -> bool {
 }
 lazy_static! {
     ///Special chars that should be filtered out.
-    static ref ALL_U32: Uniform<u32> = Uniform::new_inclusive(0u32, u32::max_value()).unwrap(); //safe because low < high
+    static ref ALL_U32: Uniform<u32> = Uniform::new_inclusive(0u32, u32::MAX).unwrap(); //safe because low < high
     //We use this so we don't have to generate the floating numbers and do comparisons on them. It allows us to do 1/2 percent level scaling.
     static ref ONE_TO_TWO_HUNDRED: Uniform<u8> = Uniform::new_inclusive(1, 200).unwrap(); // safe because low < high
 }
@@ -43,10 +43,10 @@ pub fn generate_hashes_for_string_with_padding<R: Rng + CryptoRng>(
 ) -> Result<HashSet<u32>, String> {
     let mut hashes = generate_hashes_for_string(s, partition_id, salt)?;
 
-    let prob = take_lock(&rng).deref_mut().sample(*ONE_TO_TWO_HUNDRED);
+    let prob = take_lock(rng).deref_mut().sample(*ONE_TO_TWO_HUNDRED);
     let to_add: u8 = {
         //Just take the lock once because we need it in all cases and it makes the code look better.
-        let r = &mut *take_lock(&rng);
+        let r = &mut *take_lock(rng);
         if prob <= 1 {
             r.random_range(1..200)
         } else if prob <= 5 {
@@ -61,7 +61,7 @@ pub fn generate_hashes_for_string_with_padding<R: Rng + CryptoRng>(
     //This also ensures we're able to pad by at least 2 since the maximum trigram length is always 2 less than the max string length.
     let pad_len = std::cmp::min(MAX_STRING_LEN - hashes.len(), to_add as usize);
     hashes.extend(
-        take_lock(&rng)
+        take_lock(rng)
             .deref_mut()
             .sample_iter(*ALL_U32)
             .take(pad_len),
@@ -80,7 +80,10 @@ pub fn generate_hashes_for_string(
     salt: &[u8],
 ) -> Result<HashSet<u32>, String> {
     if s.len() > MAX_STRING_LEN {
-        Err(format!("The input string is too long. This function only supports strings that are no longer than {} chars.", MAX_STRING_LEN))
+        Err(format!(
+            "The input string is too long. This function only supports strings that are no longer than {} chars.",
+            MAX_STRING_LEN
+        ))
     } else {
         //Compute a partial sha256 with the partition_id and the salt - We can reuse this for each word
         let partial_sha256 = partition_id
@@ -118,7 +121,6 @@ fn make_tri_grams(s: &str) -> HashSet<String> {
     let converted_string = transliterate_string(s);
     converted_string
         .unicode_words()
-        .into_iter()
         .map(|short_word| {
             let short_word_len = short_word.chars().count();
             if short_word_len < 3 {
@@ -142,7 +144,7 @@ fn word_to_trigrams(s: &str) -> HashSet<String> {
 ///Convert the char if we can, if we can't just create a string out of the character.
 fn char_to_trans(c: char) -> String {
     let trans_string = unidecode_char(c);
-    if trans_string == "" {
+    if trans_string.is_empty() {
         format!("{}", c)
     } else {
         trans_string.to_lowercase()
