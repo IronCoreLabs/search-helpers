@@ -7,8 +7,8 @@ license = "AGPL-3.0-only"
 categories = ["cryptography"]
 keywords = ["cryptography", "encrypted-search", "search"]
 description = "Search helpers for working with encrypted values, particularly on the IronCore platform."
-edition = "2021"
-rust-version = "1.56.0"
+edition = "2024"
+rust-version = "1.85.0"
 
 [dependencies]
 sha2 = "0.10"
