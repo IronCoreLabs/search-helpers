@@ -1,0 +1,15 @@
+name: Rust CI
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  workflow_dispatch:
+  schedule:
+    - cron: 0 14 * * 1
+jobs:
+  rust-ci:
+    uses: IronCoreLabs/workflows/.github/workflows/rust-ci.yaml@rust-ci-v2
+    with:
+      run_clippy: true
+    secrets: inherit

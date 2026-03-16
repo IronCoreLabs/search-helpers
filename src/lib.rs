@@ -1,6 +1,7 @@
 use Result::{Err, Ok};
 use itertools::*;
 use lazy_static::*;
+use rand::RngExt;
 use rand::distr::Uniform;
 use rand::{CryptoRng, Rng};
 use sha2::digest::Update;
@@ -157,7 +158,7 @@ fn as_u32_be(slice: &[u8; 32]) -> u32 {
     ((slice[0] as u32) << 24)
         + ((slice[1] as u32) << 16)
         + ((slice[2] as u32) << 8)
-        + ((slice[3] as u32) << 0)
+        + (slice[3] as u32)
 }
 
 /// Acquire mutex in a blocking fashion. If the Mutex is or becomes poisoned, panic.
@@ -178,7 +179,7 @@ fn as_u32_be(slice: &[u8; 32]) -> u32 {
 /// }; // lock released here
 /// ```
 ///
-fn take_lock<T>(m: &Mutex<T>) -> MutexGuard<T> {
+fn take_lock<T>(m: &Mutex<T>) -> MutexGuard<'_, T> {
     m.lock().unwrap_or_else(|e| {
         let error = format!("Error when acquiring lock: {}", e);
         panic!("{}", error);
