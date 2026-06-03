@@ -16,5 +16,5 @@ lazy_static = "1.4"
 rand = "0.10"
 sha2 = "0.11"
 # We pin these so they can't vary accidentally.
-unicode-segmentation = "=1.13.2"
+unicode-segmentation = "=1.13.3"
 unidecode = "=0.3.0"
