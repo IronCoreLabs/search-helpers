@@ -11,7 +11,7 @@ edition = "2024"
 rust-version = "1.88.0"
 
 [dependencies]
-itertools = "0.14"
+itertools = "0.15"
 lazy_static = "1.4"
 rand = "0.10"
 sha2 = "0.11"
